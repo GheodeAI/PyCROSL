@@ -20,7 +20,7 @@ For an explanation of how the CRO-SL algorithm works, we refer to [the paper](ht
 We recommend installing the project as a package. To do so, use the following commands:
 
 ```
-git clone https://github.com.jperezaracil/PyCROSL.git
+git clone https://github.com/jperezaracil/PyCROSL.git
 cd PyCROSL
 pip intall -r requirements.txt
 pip install -e .
