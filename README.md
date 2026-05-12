@@ -67,6 +67,7 @@ This dictionary contains the following parameters:
     - `Ngen`: number of generations
     - `time_limit`: execution time limit given in seconds (real time, not CPU time)
     - `fit_target`: value of the fitness function we want to reach
+    - `convergence`: stop after a number of iterations without improvement (configured with the `max_patience` parameter).
     - `stop_cond`: a string that determines the stopping condition. It can be simply the name of the criterion to be used (e.g. `Ngen`, `Neval`, etc), or also a logical expression that combines these different criteria (e.g. `Ngen or Neval`, `time_limit and fit_target`, etc). Must be included even if only a single criterion is used.
 - Parallelization:
     - `Njobs`: the number of jobs to run in parallel. If `Njobs = 1`, the algorithm will run in sequential mode.

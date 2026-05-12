@@ -55,6 +55,7 @@ class CRO_SL:
         self.Neval = params.get("Neval", 1e5) 
         self.time_limit = params.get("time_limit", 100) 
         self.fit_target = params.get("fit_target", 0) 
+        self.max_patience = params.get("max_patience", 100)
 
         # Data structures of the algorithm
         self.objfunc = objfunc
@@ -68,6 +69,8 @@ class CRO_SL:
         self.best_fitness = 0
         self.time_spent = 0
         self.real_time_spent = 0
+        self.patience = self.max_patience
+        self.prev_best = None
 
     
     def restart(self):
@@ -106,6 +109,18 @@ class CRO_SL:
         self.history.append(best_fitness)
         self.sol_history.append(best_indiv)
     
+        if self.objfunc.opt == "max":
+            if self.prev_best is None or best_fitness > self.prev_best:
+                self.patience = self.max_patience
+                self.prev_best = best_fitness
+            else:
+                self.patience -= 1
+        else:
+            if self.prev_best is None or best_fitness < self.prev_best:
+                self.patience = self.max_patience
+                self.prev_best = best_fitness
+            else:
+                self.patience -= 1
     
     def local_search(self, operator, n_ind, iterations=100):
         """
@@ -130,12 +145,15 @@ class CRO_SL:
 
         real_time_reached = time.time() - time_start >= self.time_limit
 
+        best_fitness = self.best_solution()[1]
         if self.objfunc.opt == "max":
-            target_reached = self.best_solution()[1] >= self.fit_target
+            target_reached = best_fitness >= self.fit_target
         else:
-            target_reached = self.best_solution()[1] <= self.fit_target
+            target_reached = best_fitness <= self.fit_target
+        
+        patience = self.patience == 0
 
-        return process_condition(self.stop_cond_parsed, neval_reached, ngen_reached, real_time_reached, target_reached)
+        return process_condition(self.stop_cond_parsed, neval_reached, ngen_reached, real_time_reached, target_reached, patience)
 
     
     def progress(self, gen, time_start):
@@ -157,7 +175,8 @@ class CRO_SL:
                 best_fitness = 1e-15
             target_reached = self.fit_target/best_fitness
 
-        return process_progress(self.stop_cond_parsed, neval_reached, ngen_reached, real_time_reached, target_reached)
+        # Patience won't be used as a progress metric
+        return process_progress(self.stop_cond_parsed, neval_reached, ngen_reached, real_time_reached, target_reached, 0)
     
     
     def save_data(self, solution_file=None, population_file=None, history_file=None, prob_file=None, indiv_history=None):
@@ -334,6 +353,7 @@ class CRO_SL:
         best_fitness = self.population.best_solution()[1]
         print(f"\tBest fitness: {best_fitness}")
         print(f"\tEvaluations of fitness: {self.objfunc.counter}")
+        print(f"\tIterations without improvement: {self.max_patience - self.patience}")
 
         if self.dynamic:
             print(f"\tSubstrate probability:")
@@ -543,7 +563,7 @@ def parse_stopping_cond(condition_str):
 
     orop = pp.Literal("and")
     andop = pp.Literal("or")
-    condition = pp.oneOf(["Neval", "Ngen", "time_limit", "fit_target"])
+    condition = pp.oneOf(["Neval", "Ngen", "time_limit", "fit_target", "convergence"])
 
     expr = pp.infixNotation(
         condition,
@@ -556,7 +576,7 @@ def parse_stopping_cond(condition_str):
     return expr.parse_string(condition_str).as_list()
 
 
-def process_condition(cond_parsed, neval, ngen, real_time, target):
+def process_condition(cond_parsed, neval, ngen, real_time, target, patience):
     """
     This function receives as an input an expression for the stopping condition
     and the truth variable of the possible stopping conditions and returns wether to stop or not.
@@ -566,8 +586,8 @@ def process_condition(cond_parsed, neval, ngen, real_time, target):
 
     if isinstance(cond_parsed, list):
         if len(cond_parsed) == 3:
-            cond1 = process_condition(cond_parsed[0], neval, ngen, real_time, target)
-            cond2 = process_condition(cond_parsed[2], neval, ngen, real_time, target)
+            cond1 = process_condition(cond_parsed[0], neval, ngen, real_time, target, patience)
+            cond2 = process_condition(cond_parsed[2], neval, ngen, real_time, target, patience)
 
             if cond_parsed[1] == "or":
                 result = cond1 or cond2
@@ -575,7 +595,7 @@ def process_condition(cond_parsed, neval, ngen, real_time, target):
                 result = cond1 and cond2
 
         elif len(cond_parsed) == 1:
-            result = process_condition(cond_parsed[0], neval, ngen, real_time, target)
+            result = process_condition(cond_parsed[0], neval, ngen, real_time, target, patience)
 
     else:
         if cond_parsed == "Neval":
@@ -586,22 +606,24 @@ def process_condition(cond_parsed, neval, ngen, real_time, target):
             result = real_time
         elif cond_parsed == "fit_target":
             result = target
+        elif cond_parsed == "convergence":
+            result = patience
     
     return result
 
 
-def process_progress(cond_parsed, neval, ngen, real_time, target):
+def process_progress(cond_parsed, neval, ngen, real_time, target, patience):
     """
     This function receives as an input an expression for the stopping condition 
-    and the truth variable of the possible stopping conditions and returns wether to stop or not. 
+    and the truth variable of the possible stopping conditions and returns whether to stop or not. 
     """
     result = None
     
     if isinstance(cond_parsed, list):
         if len(cond_parsed) == 3:
             
-            progress1 = process_progress(cond_parsed[0], neval, ngen, real_time, target)
-            progress2 = process_progress(cond_parsed[2], neval, ngen, real_time, target)
+            progress1 = process_progress(cond_parsed[0], neval, ngen, real_time, target, patience)
+            progress2 = process_progress(cond_parsed[2], neval, ngen, real_time, target, patience)
 
             if cond_parsed[1] == "or":
                 result = max(progress1, progress2)
@@ -609,7 +631,7 @@ def process_progress(cond_parsed, neval, ngen, real_time, target):
                 result = min(progress1, progress2)
             
         elif len(cond_parsed) == 1:
-            result = process_progress(cond_parsed[0], neval, ngen, real_time, target)
+            result = process_progress(cond_parsed[0], neval, ngen, real_time, target, patience)
     else:
         if cond_parsed == "Neval":
             result = neval
@@ -619,5 +641,7 @@ def process_progress(cond_parsed, neval, ngen, real_time, target):
             result = real_time
         elif cond_parsed == "fit_target":
             result = target
+        elif cond_parsed == "convergence":
+            result = patience
 
     return result
