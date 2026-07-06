@@ -38,7 +38,7 @@ def main():
     error_file = "cro_classic_error.csv"
 
 
-    DEparams = {"F":0.7, "Pr":0.8}
+    DEparams = {"F":0.7, "Cr":0.8}
     substrates_real = [
         SubstrateReal("DE/rand/1", DEparams),
         SubstrateReal("DE/best/2", DEparams),

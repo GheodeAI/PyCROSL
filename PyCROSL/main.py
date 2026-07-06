@@ -205,7 +205,7 @@ def test_files():
     c.save_solution()
 
 def thirty_runs():
-    DEparams = {"F":0.7, "Pr":0.8}
+    DEparams = {"F":0.7, "Cr":0.8}
     substrates_real = [
         SubstrateReal("DE/rand/1", DEparams),
         SubstrateReal("DE/best/2", DEparams),
